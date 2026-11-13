@@ -4,7 +4,9 @@
 use core::{arch::{asm, global_asm}, fmt::{self, Write}, panic::PanicInfo, ptr, sync::atomic::{AtomicU64, AtomicUsize, AtomicU8, Ordering}};
 
 mod gui;
+mod arch;
 mod scheduler;
+mod syscall;
 
 // Limine protocol: request markers, base revision 3, and a framebuffer request.
 #[used]
@@ -70,7 +72,7 @@ struct IdtEntry { offset_low: u16, selector: u16, ist: u8, attributes: u8, offse
 impl IdtEntry {
     const MISSING: Self = Self { offset_low: 0, selector: 0, ist: 0, attributes: 0, offset_mid: 0, offset_high: 0, reserved: 0 };
     fn interrupt_gate(handler: usize) -> Self {
-        Self { offset_low: handler as u16, selector: 0x28, ist: 0,
+        Self { offset_low: handler as u16, selector: arch::KERNEL_CODE, ist: 0,
             attributes: 0x8e, offset_mid: (handler >> 16) as u16,
             offset_high: (handler >> 32) as u32, reserved: 0 }
     }
@@ -208,6 +210,7 @@ extern "C" fn irq_dispatch(irq: u32, saved_rsp: u64) -> u64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     Serial::init();
+    unsafe { arch::init(); }
     serial_println!("OS 28 — Rust x86-64 kernel");
     serial_println!("Booted through the Limine protocol.");
     let mut framebuffer: *const Framebuffer = ptr::null();
